@@ -1,9 +1,8 @@
 #include <HCSR04.h>
 
-const int dspU[7]={11, 10, A4, A3, A2, 12, 13};
-const int dspD[7]={7, 6, 5, 4, 3, 2, A1};
+const int dsp[7]={11, 10, A4, A3, A2, 12, 13};
 const int pt=A5;
-int contador=0, unidade=0, dezena=0;
+int contador=0;
 const int echo=9, trig=8;
 UltraSonicDistanceSensor distanceSensor(8, 9, 30);
 int distance;
@@ -23,10 +22,8 @@ int numero[10][7]{
 };
 
 void setup(){
-  for(int i=0; i<7;i++){
-    pinMode(dspU[i], OUTPUT);
-    pinMode(dspD[i], OUTPUT);
-  }
+  for(int i=0; i<7;i++)
+    pinMode(dsp[i], OUTPUT);
   pinMode(pt, OUTPUT);
   Serial.begin(9600);
 }
@@ -46,9 +43,9 @@ void loop(){
   
   if(udsState && !udsState_old){
     contador++;
-  if(contador>99){
-    Serial.println("Número máximo de itens atingido!");
-    contador=99;
+  if(contador>9){
+    Serial.println("Número máximo atingido!");
+    contador=9;
   }
   
   }
@@ -61,14 +58,9 @@ void loop(){
     udsState_old=0;
     delay(50);
   }
-  unidade=contador%10;
-  if(contador>9)
-	dezena=contador/10;
-	
   
   for(int i=0;i<7;i++){
-    digitalWrite(dspU[i], numero[unidade][i]);
-    digitalWrite(dspD[i], numero[dezena][i]);
+    digitalWrite(dsp[i], numero[contador][i]);
   }
   
   
