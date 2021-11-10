@@ -8,7 +8,7 @@
  *    RX      ->   3(TX)
  *    TX      ->   2(RX)
  */
-SoftwareSerial esp8266(2,3); 
+SoftwareSerial esp8266(4,5); 
   
 #define DEBUG true
  
