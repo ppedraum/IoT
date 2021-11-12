@@ -1,0 +1,7 @@
+HTTP - Métodos
+
+GET: Pega conteúdos do servidor
+POST: Altera conteúdos do servidor
+
+Um aparelho possui vários ports juntamente ao ip.
+Webservers são conectados no port nº80.
