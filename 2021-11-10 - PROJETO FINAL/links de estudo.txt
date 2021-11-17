@@ -1,0 +1,3 @@
+buzzer -> https://www.blogdarobotica.com/2020/10/05/utilizando-o-buzzer-ativo-no-arduino/
+
+ultrassonico -> https://www.filipeflop.com/blog/sensor-ultrassonico-hc-sr04-ao-arduino/
