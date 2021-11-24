@@ -5,10 +5,103 @@
 DHT dht(DHTPIN, DHTTYPE); //Instância dht (pino, tipo)
 float dht_t=0;
 //---------------------------------------------------//
+//-----------------HCSR04----------------------------//
+#include <Ultrasonic.h>
+#define trigger 6
+#define echo 7
+Ultrasonic uts(trigger, echo);
+
+#define led_a 9
+#define led_b 10
+
+unsigned long pre_millis=0;
+
+//
+#define bt 4
+int bt_stt=0, bt_stt0=0, bt_vle=0;
+String bt_desc[]={"Marcha Normal", "Marcha Re", "Marcha Morto"};
+//bt_vle ---> 0=Normal - 1=Ré - 2=Morto
+String re_stt="";
+//
+#define buzz 8
+
+//
+
+void bzz_blink(int interval){
+  unsigned long cur_millis = millis();
+  if(cur_millis-pre_millis>=interval/2 && cur_millis-pre_millis<interval){
+    digitalWrite(buzz, HIGH);
+    Serial.println("buzz");
+  }
+  else if(cur_millis-pre_millis>=interval){
+    pre_millis=cur_millis;
+    digitalWrite(buzz, LOW);
+    Serial.println("no buzz");
+  }
+}
+
+long uts_measure(){
+  long uts_ms=uts.timing();
+  float uts_cm=uts.convert(uts_ms, Ultrasonic::CM);
+  return uts_cm;
+}
+void uts_routine(){
+  long uts_ms=uts.timing();
+  float uts_cm=uts.convert(uts_ms, Ultrasonic::CM);
+  
+  if(uts_cm<20 && uts_cm>=10){
+    bzz_blink(2000);
+  }else if(uts_cm<10){
+    bzz_blink(1000);
+    //Buzzer mais alto
+  }else if(uts_cm<5){
+    bzz_blink(500);
+  }else{
+    digitalWrite(buzz, LOW);
+  }
+  
+}
+void bt_read(){
+  bt_stt=digitalRead(bt);
+
+  if(bt_stt && !bt_stt0){
+    bt_vle++;
+    if(bt_vle>2)
+      bt_vle=0;
+  }
+  
+  bt_stt0=digitalRead(bt);
+
+  switch(bt_vle){
+    case 0:
+      digitalWrite(led_a, LOW);
+      digitalWrite(led_b, LOW);
+    break;
+    case 1:
+      digitalWrite(led_a, HIGH);
+      digitalWrite(led_b, HIGH);
+      uts_routine();
+    break;
+    case 2:
+      digitalWrite(led_a, LOW);
+      digitalWrite(led_b, LOW);
+    break;
+
+    if(bt_vle==1){
+      re_stt="Ativo";
+    }else{
+      re_stt="Inativo";
+    }
+  }
+}
+//--------------------------------------------------//
+
+//---------------------------------------------------//
+
 
 //---------ESP8266------------//
 #include <SoftwareSerial.h>
-SoftwareSerial esp8266(4,5); 
+SoftwareSerial esp8266(2,3); 
 #define bdrate 9600
 #define DEBUG true
 //----------------------------//
@@ -46,34 +139,8 @@ void esp_setup(){
 //-------------------------------------------------------------------------------//
 
 //---------------------------LEITURA DO DHT--------------------------------------//
-void dht_read(){
-  dht_t = dht.readTemperature();
-  if (isnan(dht_t)) { //Se não conseguiu ler algum deles
-    Serial.println("Falha ao ler o sensor DHT!!!");
-    delay(2000);
-    return;
-  }
-  //Serial.println("Temperatura = " + String(dht_t) + "ºC");
-  delay(2000);
-}
 //--------------------------------------------------------------------------------//
 //-------------------------COMANDOS DO CARRO--------------------------------------//
-#define ign 2
-boolean ign_stt, ign_stt0;
-boolean isIgn;
-
-boolean ignicao(){
-  ign_stt=digitalRead(ign);
-  if(ign_stt && !ign_stt0){
-    if(!isIgn){
-      isIgn=true;
-    }else{
-      isIgn=false;
-    }
-  }
-  ign_stt0=digitalRead(ign);
-  return isIgn;
-}
 
 //--------------------------------------------------------------------------------//
 
@@ -83,18 +150,14 @@ void setup() {
   Serial.begin(9600);
   dht.begin();
   esp_setup();
+
 }
 //-----------------//
 
 //LOOP (FUNÇÕES SENDO EXECUTADAS)//
 void loop() {
-  if(ignicao()){
-    dht_read();
-    webserver();
-    print("Ignição ligada");
-  }else{
-    print("Ignição desligada");
-  }
+  webserver();
+  bt_read();
 }
 //------------------------------//
 
@@ -107,13 +170,25 @@ void webserver(){
     {
       delay(300);
       int connectionId = esp8266.read() - 48;
- 
+
       String webpage = "<head><meta http-equiv=""refresh"" content=""3"">";
-      webpage += "</head><h1><u>Exemplo: Web Server com ESP01.</u><h1>";
-      webpage += "<h2>Leitura da Temperatura: ";
-      webpage += dht_t;
-      webpage += "</h2>";
- 
+      webpage+= "<title>Carro</title></head>";
+      webpage+= "<body><h1>Carrinho Topzera</h1>";
+      webpage+= "Estado atual do carro<br><br>";
+      webpage+= "<h2>INFORMACOES GERAIS</h2>";
+      webpage+= "Velocidade do carro: <br>";
+      webpage+= "Marcha:";
+      webpage+= bt_desc[bt_vle];
+      webpage+= "<br>";
+      webpage+= "Temperatura do Oleo:";
+      webpage+= dht.readTemperature();
+      webpage+= "<br>";
+      webpage+= "Luminosidade da area: <br>";
+      webpage+= "<h2>Sensor de re</h2>";
+      //webpage+= "Estado: "+ re_stt +" <br>";
+      //webpage+= "Distancia a um objeto proximo: "+ String(uts_measure()/100) +"m</body>";
+      webpage += "</body>";
+      
       String cipSend = "AT+CIPSEND=";
       cipSend += connectionId;
       cipSend += ",";
