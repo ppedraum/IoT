@@ -57,6 +57,26 @@ void dht_read(){
   delay(2000);
 }
 //--------------------------------------------------------------------------------//
+//-------------------------COMANDOS DO CARRO--------------------------------------//
+#define ign 2
+boolean ign_stt, ign_stt0;
+boolean isIgn;
+
+boolean ignicao(){
+  ign_stt=digitalRead(ign);
+  if(ign_stt && !ign_stt0){
+    if(!isIgn){
+      isIgn=true;
+    }else{
+      isIgn=false;
+    }
+  }
+  ign_stt0=digitalRead(ign);
+  return isIgn;
+}
+
+//--------------------------------------------------------------------------------//
+
 
 //-----SETUP--------//
 void setup() {
@@ -68,8 +88,13 @@ void setup() {
 
 //LOOP (FUNÇÕES SENDO EXECUTADAS)//
 void loop() {
-  dht_read();
-  webserver();
+  if(ignicao()){
+    dht_read();
+    webserver();
+    print("Ignição ligada");
+  }else{
+    print("Ignição desligada");
+  }
 }
 //------------------------------//
 
