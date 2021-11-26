@@ -1,3 +1,5 @@
+#include <stdarg.h>
+
 //---------------------DHT---------------------------//
 #include <DHT.h>
 #define DHTPIN A5 //pino DHT
@@ -5,74 +7,70 @@
 DHT dht(DHTPIN, DHTTYPE); //Instância dht (pino, tipo)
 float dht_t=0;
 //---------------------------------------------------//
+
+
+
 //-----------------HCSR04----------------------------//
 #include <Ultrasonic.h>
 #define trigger 6
 #define echo 7
 Ultrasonic uts(trigger, echo);
+long uts_ms = 0;
+float uts_cm = 0;
 
 #define led_a 9
 #define led_b 10
 
+#define led_c 11
+#define led_d 12
+
 unsigned long pre_millis=0;
 
-//
-#define bt 4
-int bt_stt=0, bt_stt0=0, bt_vle=0;
-String bt_desc[]={"Marcha Normal", "Marcha Re", "Marcha Morto"};
-//bt_vle ---> 0=Normal - 1=Ré - 2=Morto
-String re_stt="";
-//
-#define buzz 8
 
-//
-
-void bzz_blink(int interval){
-  unsigned long cur_millis = millis();
-  if(cur_millis-pre_millis>=interval/2 && cur_millis-pre_millis<interval){
-    digitalWrite(buzz, HIGH);
-    Serial.println("buzz");
-  }
-  else if(cur_millis-pre_millis>=interval){
-    pre_millis=cur_millis;
-    digitalWrite(buzz, LOW);
-    Serial.println("no buzz");
-  }
-}
-
-long uts_measure(){
-  long uts_ms=uts.timing();
-  float uts_cm=uts.convert(uts_ms, Ultrasonic::CM);
-  return uts_cm;
-}
-void uts_routine(){
-  long uts_ms=uts.timing();
-  float uts_cm=uts.convert(uts_ms, Ultrasonic::CM);
+void uts_routine(){ 
+  //Faz a rotina do HCSR04 (medir a distância) 
   
+  uts_ms=uts.timing();
+  uts_cm=uts.convert(uts_ms, Ultrasonic::CM);
+  uts_m = uts_cm/100;
   if(uts_cm<20 && uts_cm>=10){
-    bzz_blink(2000);
-  }else if(uts_cm<10){
-    bzz_blink(1000);
+    blinkw(2000, buzz);
+  }else if(uts_cm<10 && uts_cm>=5){
+    blinkw(1000, buzz);
     //Buzzer mais alto
   }else if(uts_cm<5){
-    bzz_blink(500);
+    blinkw(500, buzz);
   }else{
     digitalWrite(buzz, LOW);
   }
-  
 }
-void bt_read(){
-  bt_stt=digitalRead(bt);
+//---------------------------------------------------//
 
-  if(bt_stt && !bt_stt0){
-    bt_vle++;
-    if(bt_vle>2)
-      bt_vle=0;
-  }
+
+//-----------------CARRO------------------------------//
+#define bt_marcha 4
+int bt_stt=0, bt_stt0=0;
+int vles[]={0,0,0}; //Vou nem falar nada disso
+//2=ignição - 1=Marcha - 2=Faróis
+
+//Então, aqui eu meio que caguei tudo e fiz um monte de arrays para diferentes estados de cada input
+//Não necessáriamente está certo fazer desse jeito mas funciona. Isso que é importante.
+
+String marcha_desc[]={"Marcha Normal", "Marcha Re", "Marcha Morto"};
+String carro_stt[]={"Ligado", "Desligado"};
+String farol_desc[]={"Ligados", "Desligados"};
+//vles[0] ---> 0=Normal - 1=Ré - 2=pisca alerta
+//vles[1] ---> 0=Desl - 1=Lig
+String re_stt="";
+#define buzz 8
+
+
+void ver_marcha(){ 
+  //Verifica em qual marcha está
   
-  bt_stt0=digitalRead(bt);
+  bt_action_press(bt_marcha, 2, 0, vles[1]);
 
-  switch(bt_vle){
+  switch(vles[1]){
     case 0:
       digitalWrite(led_a, LOW);
       digitalWrite(led_b, LOW);
@@ -85,18 +83,79 @@ void bt_read(){
     case 2:
       digitalWrite(led_a, LOW);
       digitalWrite(led_b, LOW);
+      while(vles[0]==2){
+        blinkw(500, led_c);
+        blinkw(500, led_d);
+      }
     break;
-
-    if(bt_vle==1){
+    if(vles[1]==1){
       re_stt="Ativo";
     }else{
       re_stt="Inativo";
     }
   }
 }
-//--------------------------------------------------//
 
-//---------------------------------------------------//
+void ver_lights(){ 
+  //Verifica as luzes do farol
+  
+  bt_action_press(bt_marcha, 1, 0, vles[2]);
+  switch (vles[2]){
+    case 0:
+      digitalWrite(led_c, LOW);
+      digitalWrite(led_d, LOW);
+    break;
+    case 1:
+      digitalWrite(led_c, HIGH);
+      digitalWrite(led_d, HIGH);
+    break;
+  }
+}
+
+void com_routines(){ 
+  //Agrega todas as rotinas do carro que possuem funções definidas ou apenas uma variável
+  
+  ver_lights();
+  ver_marcha();
+
+  temp_oleo = dht.readTemperature();
+}
+
+//----------------------------------------------------//
+
+
+//---------------FUNÇÕES PRONTAS PARA USO-------------//
+void blinkw(int interval, int port){ 
+  //Faz um blink com algum dispositivo de saída digital
+  
+  unsigned long cur_millis = millis();
+  if(cur_millis-pre_millis>=interval/2 && cur_millis-pre_millis<interval){
+    digitalWrite(port, HIGH);
+    Serial.println("blink");
+  }
+  else{
+    pre_millis=cur_millis;
+    digitalWrite(port, LOW);
+    Serial.println("no blink");
+  }
+}
+
+void bt_action_press(int bt, int interval, int interval0, int counter){ 
+  //Verifica se um botão foi pressionado e quantos estados se somam ao contador
+  //Inclui último valor
+  
+  bt_stt=digitalRead(bt);
+
+  if(bt_stt && !bt_stt0){
+    counter++;
+    if(counter>interval)
+      bt=interval0;
+  }
+  
+  bt_stt0=digitalRead(bt);
+}
+//----------------------------------------------------//
+
 
 
 //---------ESP8266------------//
@@ -138,11 +197,6 @@ void esp_setup(){
 }
 //-------------------------------------------------------------------------------//
 
-//---------------------------LEITURA DO DHT--------------------------------------//
-//--------------------------------------------------------------------------------//
-//-------------------------COMANDOS DO CARRO--------------------------------------//
-
-//--------------------------------------------------------------------------------//
 
 
 //-----SETUP--------//
@@ -156,8 +210,8 @@ void setup() {
 
 //LOOP (FUNÇÕES SENDO EXECUTADAS)//
 void loop() {
-  webserver();
-  bt_read();
+  webserver(); //mantém o webserver rodando
+  com_routines(); //verifica as diferentes rotinas do carro e seus sensores
 }
 //------------------------------//
 
@@ -171,24 +225,37 @@ void webserver(){
       delay(300);
       int connectionId = esp8266.read() - 48;
 
+      //Aqui é onde se cria a parte HTML do webserver, basicamente vai somando o código por linhas à
+      //Var webpage e depois upa tudo com o comando sendData()
+      
       String webpage = "<head><meta http-equiv=""refresh"" content=""3"">";
       webpage+= "<title>Carro</title></head>";
       webpage+= "<body><h1>Carrinho Topzera</h1>";
       webpage+= "Estado atual do carro<br><br>";
       webpage+= "<h2>INFORMACOES GERAIS</h2>";
+      webpage+= "<h3>ESTADO DO CARRO: </h3>";
+      webpage+= carro_stt[vles[0]];
+      webpage+= "<br>";
       webpage+= "Velocidade do carro: <br>";
+      webpage+= "Faróis:";
+      webpage+= farol_desc[vles[2]];
+      webpage+= "<br>";
       webpage+= "Marcha:";
-      webpage+= bt_desc[bt_vle];
+      webpage+= marcha_desc[vles[1]];
       webpage+= "<br>";
       webpage+= "Temperatura do Oleo:";
-      webpage+= dht.readTemperature();
+      webpage+= temp_oleo;
       webpage+= "<br>";
-      webpage+= "Luminosidade da area: <br>";
       webpage+= "<h2>Sensor de re</h2>";
-      //webpage+= "Estado: "+ re_stt +" <br>";
-      //webpage+= "Distancia a um objeto proximo: "+ String(uts_measure()/100) +"m</body>";
+      webpage+= "Estado:";
+      webpage+= re_stt;
+      webpage+="<br>";
+      webpage+= "Distancia a um objeto proximo: ";
+      webpage+= uts_m;
+      webpage+="m<br>";
       webpage += "</body>";
-      
+
+      //Prepara o ESP8266 pra receber tal número de caracteres ou números, acho eu
       String cipSend = "AT+CIPSEND=";
       cipSend += connectionId;
       cipSend += ",";
@@ -198,7 +265,7 @@ void webserver(){
       sendData(cipSend, 1000, DEBUG);
       sendData(webpage, 1000, DEBUG);
  
-      String closeCommand = "AT+CIPCLOSE=";
+      String closeCommand = "AT+CIPCLOSE="; //Fecha a transmissão de dados
       closeCommand += connectionId; // append connection id
       closeCommand += "\r\n";
  
@@ -206,7 +273,13 @@ void webserver(){
     }
   }
 }
+
 String sendData(String command, const int timeout, boolean debug)
+//Ok, esse comando aparentemente é muito importante mas eu não faço muita
+//Noção de como funciona, mas basicamente ele envia comandos pra o ESP8266 com o print
+//E também printa na Serial caso o debug esteja ativado
+//(Na real é exatamente isso que faz, escrevi enquanto lia o código KKKKK
+
 {
   // Envio dos comandos AT para o modulo
   String response = "";
